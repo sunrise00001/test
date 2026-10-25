@@ -1,0 +1,16 @@
+# Keil build output and local debugger state
+MDK-ARM/can/
+MDK-ARM/*.uvoptx
+MDK-ARM/*.uvguix.*
+MDK-ARM/*.log
+MDK-ARM/*.lst
+MDK-ARM/JLinkLog.txt
+
+# Local editor and operating-system files
+.vs/
+.vscode/
+.idea/
+*.swp
+*.tmp
+Thumbs.db
+Desktop.ini
