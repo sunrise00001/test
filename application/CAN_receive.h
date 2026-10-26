@@ -29,6 +29,9 @@ typedef struct
     int16_t given_current;
     uint8_t temperature;
     uint16_t last_ecd;
+    /* 从本次上电收到的首帧起累计的转子编码器计数，首帧位置为零。 */
+    int64_t total_ecd;
+    uint8_t ecd_initialized;// 0: 未初始化，1: 已初始化
 } motor_measure_t;
 
 /*
@@ -37,5 +40,12 @@ typedef struct
  * 参数越界时返回空指针。该数据由 CAN 接收中断更新。
  */
 extern const volatile motor_measure_t *get_2006_motor_measure_point(uint8_t motor_index);
+
+extern uint8_t get_2006_motor_relative_count(uint8_t motor_index, int64_t *count);
+
+/* 根据实际传动比换算输出轴相对角度（度）；未初始化或参数无效时返回 0。 */
+extern uint8_t get_2006_motor_relative_angle_deg(uint8_t motor_index,
+                                                  float reduction_ratio,
+                                                  float *angle_deg);
 
 #endif
