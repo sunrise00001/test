@@ -5,12 +5,12 @@
 #include "cmsis_os2.h"
 #include "can.h"
 #include "bsp_can.h"
+#include "gravity.h"
+#include "gravity_log.h"
 
-#define MOTOR_CONTROL_PERIOD_MS 1U
-#define FRAME_GAP_MS 1U
+#define MOTOR_CONTROL_PERIOD_MS 2U
 
 static int16_t m2006_current_command[M2006_MOTOR_COUNT];
-static dm4310_mit_command_t dm4310_command[DM4310_MOTOR_COUNT];
 
 static int16_t clamp_m2006_current(int16_t current)
 {
@@ -61,24 +61,6 @@ void motor_task_set_m2006_current(uint8_t motor_index, int16_t current)
     taskEXIT_CRITICAL();
 }
 
-void motor_task_set_dm4310_mit(uint8_t motor_id,
-                               const dm4310_mit_command_t *command)
-{
-    uint8_t motor_index;
-
-    if ((command == NULL) ||
-        (motor_id < DM4310_MOTOR1_ID) ||
-        (motor_id > DM4310_MOTOR3_ID))
-    {
-        return;
-    }
-
-    motor_index = (uint8_t)(motor_id - DM4310_MOTOR1_ID);
-    taskENTER_CRITICAL();
-    dm4310_command[motor_index] = *command;
-    taskEXIT_CRITICAL();
-}
-
 void motor_task_init(void)
 {
     uint8_t i;
@@ -88,53 +70,55 @@ void motor_task_init(void)
         m2006_current_command[i] = 0;
     }
 
-    for (i = 0U; i < DM4310_MOTOR_COUNT; i++)
-    {
-        dm4310_command[i].position_rad = 0.0f;
-        dm4310_command[i].velocity_rad_s = 0.0f;
-        dm4310_command[i].kp = 0.0f;
-        dm4310_command[i].kd = 0.0f;
-        dm4310_command[i].torque_nm = 0.0f;
-    }
+    /* IDs 1 and 2 are controlled only by gravity_service_2ms(). */
+}
 
-    for (i = 0U; i < DM4310_MOTOR_COUNT; i++)
+static void motor_gravity_logger_task(void *argument)
+{
+    (void)argument;
+    for (;;)
     {
-        (void)dm4310_enable(&hcan2,
-                            (uint8_t)(DM4310_MOTOR1_ID + i),
-                            DM4310_MODE_MIT);
-        osDelay(1U);
+        gravity_log_service();
+        vTaskDelay(pdMS_TO_TICKS(2U));
     }
 }
 
+static void dis_output(void)//id3电机输出为0，无重力补偿
+{
+    static uint8_t id3_enabled;
+
+    if (id3_enabled == 0U)
+    {
+        if (dm4310_enable(&hcan2, DM4310_MOTOR3_ID, DM4310_MODE_MIT) != HAL_OK)
+            return;
+        id3_enabled = 1U;
+    }
+    /* Keep ID 3 enabled and request zero output in every remote state. */
+    (void)dm4310_mit_control(&hcan2, DM4310_MOTOR3_ID,
+                             0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+}
 
 void motorstart_task(void *argument)
 {
     uint32_t next_wake;
-    uint8_t i;
     (void)argument;
 
      
     osDelay(3000U);
     motor_task_init();
+    gravity_init();
+    if (xTaskCreate(motor_gravity_logger_task, "gravity_log", 768U, NULL,
+                    tskIDLE_PRIORITY + 1U, NULL) != pdPASS)
+    {
+        Error_Handler();
+    }
     next_wake = osKernelGetTickCount();
     for (;;)
     {
 //        (void)send_m2006_current();
-
-        for (i = 0U; i <DM4310_MOTOR_COUNT; i++)
-        {
-            const dm4310_mit_command_t *command = &dm4310_command[i];
-            (void)dm4310_mit_control(&hcan2,
-                                     (uint8_t)(DM4310_MOTOR1_ID + i),
-                                     command->position_rad,
-                                     command->velocity_rad_s,
-                                     command->kp,
-                                     command->kd,
-                                     command->torque_nm);
-        next_wake += FRAME_GAP_MS;      /* 每发一帧，推进一个发送时间点 */
-        (void)osDelayUntil(next_wake);
-        }
-
+        gravity_service_2ms();
+        osDelay(1U);
+        dis_output();
         next_wake += MOTOR_CONTROL_PERIOD_MS;
         (void)osDelayUntil(next_wake);
     }

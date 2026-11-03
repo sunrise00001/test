@@ -12,7 +12,7 @@ static const uint16_t dm4310_master_id[DM4310_MOTOR_COUNT] =
     DM4310_MOTOR1_MASTER_ID,
     DM4310_MOTOR2_MASTER_ID,
     DM4310_MOTOR3_MASTER_ID
-};
+};  
 
 static float dm4310_uint_to_float(uint16_t value, float minimum, float maximum, uint8_t bits)
 {
@@ -276,3 +276,4 @@ HAL_StatusTypeDef dm4310_clear_error(CAN_HandleTypeDef *hcan,
 {
     return dm4310_special_command(hcan, motor_id, mode, 0xFBU);
 }
+
