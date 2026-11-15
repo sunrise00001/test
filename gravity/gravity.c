@@ -21,10 +21,13 @@ static const float output_sign[2] = {GRAVITY_OUTPUT_SIGN_1, GRAVITY_OUTPUT_SIGN_
 
 static gravity_mode_t mode = GRAVITY_MODE_SAFE;
 static gravity_sample_state_t sample_state = GRAVITY_SAMPLE_IDLE;
-static uint32_t seen_rx[2];
+static uint32_t seen_rx[2];//
 static uint32_t last_rx_ms[2];
 static uint32_t last_disable_ms;
 static uint8_t enable_pending[2] = {1U, 1U};
+static uint8_t enable_sent[2];
+static uint32_t enable_rx_count[2];
+static uint32_t last_enable_ms[2];
 static uint32_t accum_seen_rx[2];
 static uint32_t move_start_ms;
 static uint32_t move_duration_ms;
@@ -94,18 +97,37 @@ static void disable_both(void)
         if (dm4310_disable(&hcan2, motor_id[i], DM4310_MODE_MIT) != HAL_OK)
             gravity_debug.can_send_fail_count++;
         enable_pending[i] = 1U;
+        enable_sent[i] = 0U;
     }
 }
 
-static void enable_both(void)
+static void enable_both(uint32_t now)
 {
     uint8_t i;
     for (i = 0U; i < 2U; ++i) {
+        const volatile dm4310_feedback_t *feedback;
+        uint32_t mask, rx_count;
+        uint8_t state;
         if (enable_pending[i] == 0U) continue;
-        if (dm4310_enable(&hcan2, motor_id[i], DM4310_MODE_MIT) == HAL_OK)
+        feedback = get_dm4310_feedback_point(motor_id[i]);
+        mask = __get_PRIMASK();
+        __disable_irq();
+        rx_count = feedback->rx_count;
+        state = feedback->state;
+        __set_PRIMASK(mask);
+        /* A CAN mailbox acceptance is not an acknowledgement from the motor. */
+        if (enable_sent[i] != 0U && rx_count != enable_rx_count[i] && state == 1U) {
             enable_pending[i] = 0U;
-        else
+            continue;
+        }
+        if (enable_sent[i] != 0U && now - last_enable_ms[i] < 20U) continue;
+        if (dm4310_enable(&hcan2, motor_id[i], DM4310_MODE_MIT) == HAL_OK) {
+            enable_sent[i] = 1U;
+            enable_rx_count[i] = rx_count;
+            last_enable_ms[i] = now;
+        } else {
             gravity_debug.can_send_fail_count++;
+        }
     }
 }
 
@@ -292,13 +314,16 @@ void gravity_init(void)
 
 void gravity_service_2ms(void)
 {
-    const RC_ctrl_t *remote = get_remote_control_point();
-    uint8_t rc_left, rc_valid;
+    const RC_ctrl_t *remote = get_remote_control_point();//接口函数，判断拨杆，遥控存活
+    uint8_t rc_left = 0U;
+    uint8_t rc_valid = 0U;
     uint32_t rc_last_tick_ms, irq_mask;
     const volatile dm4310_feedback_t *feedback[2];
     float q[2], speed[2], torque[2];
+    uint8_t motor_state[2];
     uint32_t now = HAL_GetTick();
-    uint8_t i, valid = 1U, motor_fault = 0U, driver_fault = 0U;
+    uint8_t i;
+    uint8_t valid = 1U, enabled = 1U, motor_fault = 0U, driver_fault = 0U;
     uint8_t config_ready = config_valid();
     gravity_mode_t requested = GRAVITY_MODE_SAFE;
     irq_mask = __get_PRIMASK();
@@ -319,19 +344,24 @@ void gravity_service_2ms(void)
         q[i] = feedback[i]->position_rad;
         speed[i] = feedback[i]->velocity_rad_s;
         torque[i] = feedback[i]->torque_nm;
+        motor_state[i] = feedback[i]->state;
         if (seen_rx[i] != feedback[i]->rx_count) {
             seen_rx[i] = feedback[i]->rx_count;
             last_rx_ms[i] = now;
         }
         if (feedback[i]->rx_count == 0U) valid = 0U;
-        /* Damiao ERR=0 is disabled, ERR=1 is normally enabled; 8..E are
-         * documented faults. Treat all other non-normal codes as unsafe. */
-        if (feedback[i]->rx_count != 0U && feedback[i]->state > 1U) {
+
+        if (motor_state[i] != 1U) enabled = 0U;
+        if (feedback[i]->rx_count != 0U && motor_state[i] > 1U) {
             valid = 0U;
             motor_fault = 1U;
             driver_fault = 1U;
         }
         __set_PRIMASK(mask);
+        if (motor_state[i] == 0U && enable_pending[i] == 0U) {
+            enable_pending[i] = 1U;
+            enable_sent[i] = 0U;
+        }
         if (feedback[i]->rx_count != 0U &&
             (now - last_rx_ms[i] > GRAVITY_FEEDBACK_TIMEOUT_MS ||
              (config_ready && (q[i] < q_min[i] - 0.05f ||
@@ -349,9 +379,9 @@ void gravity_service_2ms(void)
         (rc_left == RC_SW_UP || rc_left == RC_SW_MID || rc_left == RC_SW_DOWN) &&
         !driver_fault) {
         requested = GRAVITY_MODE_NO_FORCE;
-        if (config_ready && valid && !motor_fault && rc_left == RC_SW_MID)
+        if (config_ready && valid && enabled && !motor_fault && rc_left == RC_SW_MID)
             requested = GRAVITY_MODE_COMPENSATION;
-        if (config_ready && valid && !motor_fault &&
+        if (config_ready && valid && enabled && !motor_fault &&
             rc_left == RC_SW_UP && !sample_fault_latched)
             requested = GRAVITY_MODE_SAMPLING;
     }
@@ -366,7 +396,7 @@ void gravity_service_2ms(void)
         mode = requested;
     }
     if (mode != GRAVITY_MODE_SAFE) {
-        enable_both();
+        enable_both(now);
         if (enable_pending[0] != 0U || enable_pending[1] != 0U) {
             gravity_debug.mode = (uint8_t)mode;
             gravity_debug.sample_state = (uint8_t)sample_state;

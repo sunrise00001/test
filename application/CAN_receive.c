@@ -8,7 +8,7 @@ uint8_t motor_index;
 float angle[3] = {0.0f, 0.0f, 0.0f};
 
 /* 按大端格式拆解 M2006 的 8 字节反馈帧。 */
-  static void decode_2006_feedback(volatile motor_measure_t *motor, const uint8_t data[8])
+static void decode_2006_feedback(volatile motor_measure_t *motor, const uint8_t data[8])
 {
     uint16_t new_ecd = (uint16_t)(((uint16_t)data[0] << 8) | data[1]);
 
@@ -78,7 +78,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
     }
 }
 
-const volatile motor_measure_t *get_2006_motor_measure_point(uint8_t motor_index)
+const volatile motor_measure_t *get_2006_motor_measure_point(uint8_t motor_index)//2006电机数据接口，但因为64位数据类型的total_ecd，需要额外处理，以地址方式把角度传出
 {
     if (motor_index >= M2006_MOTOR_COUNT)
     {
@@ -110,10 +110,10 @@ uint8_t get_2006_motor_relative_count(uint8_t motor_index, int64_t *count)//防�
 }
 
 uint8_t get_2006_motor_relative_angle_deg(uint8_t motor_index,
-                                           float reduction_ratio,
+                                           float reduction_ratio,//传动比
                                            float *angle_deg)//编码器转换角度
 {
-    int64_t count;
+    int64_t count;//关闭中断得到一次编码器值做计算，防止被中断修改
 
     if ((angle_deg == NULL) || !(reduction_ratio > 0.0f) ||
         (get_2006_motor_relative_count(motor_index, &count) == 0U))

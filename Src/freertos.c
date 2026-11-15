@@ -132,7 +132,7 @@ osKernelInitialize(); // Initialize CMSIS-RTOS
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
-
+  
   /* USER CODE BEGIN StartDefaultTask */
   uint32_t next_wake;
   (void)argument;
@@ -182,14 +182,14 @@ static uint8_t angle_get_feedback(float angles[6])
 
   for (i = 0U; i < DM4310_MOTOR_COUNT; ++i)
   {
-    feedback = get_dm4310_feedback_point((uint8_t)(DM4310_MOTOR1_ID + i));
+    feedback = get_dm4310_feedback_point((uint8_t)(DM4310_MOTOR1_ID + i));//接口函数的作用
     primask = __get_PRIMASK();
     __disable_irq();
     if (feedback->rx_count == 0U)
     {
       __set_PRIMASK(primask);
       return 0U;
-    }
+    }      
     angles[M2006_MOTOR_COUNT + i] = feedback->position_rad;
     __set_PRIMASK(primask);
     angles[M2006_MOTOR_COUNT + i] *= RAD_TO_DEG;

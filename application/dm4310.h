@@ -14,9 +14,9 @@
 /*
  * 反馈帧标准 ID（调试助手中的 Master ID）。官方默认值为 0。
  */
-#define DM4310_MOTOR1_MASTER_ID 0x000U
+#define DM4310_MOTOR1_MASTER_ID 0x11U
 #define DM4310_MOTOR2_MASTER_ID 0x000U
-#define DM4310_MOTOR3_MASTER_ID 0x000U
+#define DM4310_MOTOR3_MASTER_ID 0x13U
 
 /* 必须与电机内部配置的 PMAX、VMAX、TMAX 一致。 */
 #define DM4310_P_MIN (-12.5f)

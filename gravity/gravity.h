@@ -4,10 +4,10 @@
 #include <stdint.h>
 
 typedef enum {
-    GRAVITY_MODE_SAFE = 0,
-    GRAVITY_MODE_NO_FORCE = 1,
-    GRAVITY_MODE_SAMPLING = 2,
-    GRAVITY_MODE_COMPENSATION = 3
+    GRAVITY_MODE_SAFE = 0,//安全模式
+    GRAVITY_MODE_NO_FORCE = 1,//无力模式
+    GRAVITY_MODE_SAMPLING = 2,//采样模式
+    GRAVITY_MODE_COMPENSATION = 3//重力补偿模式
 } gravity_mode_t;
 
 typedef enum {

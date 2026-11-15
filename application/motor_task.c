@@ -95,7 +95,7 @@ static void dis_output(void)//id3电机输出为0，无重力补偿
     }
     /* Keep ID 3 enabled and request zero output in every remote state. */
     (void)dm4310_mit_control(&hcan2, DM4310_MOTOR3_ID,
-                             0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                             0.0f, 0.0f, 0.0f, 0.4f, 0.0f);
 }
 
 void motorstart_task(void *argument)
@@ -104,8 +104,6 @@ void motorstart_task(void *argument)
     (void)argument;
 
      
-    osDelay(3000U);
-    motor_task_init();
     gravity_init();
     if (xTaskCreate(motor_gravity_logger_task, "gravity_log", 768U, NULL,
                     tskIDLE_PRIORITY + 1U, NULL) != pdPASS)
@@ -115,9 +113,8 @@ void motorstart_task(void *argument)
     next_wake = osKernelGetTickCount();
     for (;;)
     {
-//        (void)send_m2006_current();
+        send_m2006_current();
         gravity_service_2ms();
-        osDelay(1U);
         dis_output();
         next_wake += MOTOR_CONTROL_PERIOD_MS;
         (void)osDelayUntil(next_wake);

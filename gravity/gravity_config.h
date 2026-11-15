@@ -9,7 +9,7 @@
 
 /* 电机角度范围，起始点 */
 #define GRAVITY_Q1_MIN_RAD -0.002f
-#define GRAVITY_Q1_MAX_RAD 2.0f
+#define GRAVITY_Q1_MAX_RAD 2.4f
 #define GRAVITY_Q2_MIN_RAD -0.1f
 #define GRAVITY_Q2_MAX_RAD 2.4f
 #define GRAVITY_Q1_HOME_RAD 0.0f
@@ -19,7 +19,7 @@
 
 /*力矩限幅，方向定义 */
 #define GRAVITY_Q1_TORQUE_LIMIT_NM 1.2f
-#define GRAVITY_Q2_TORQUE_LIMIT_NM 1.4f
+#define GRAVITY_Q2_TORQUE_LIMIT_NM 1.2f
 #define GRAVITY_OUTPUT_SIGN_1 1.0f
 #define GRAVITY_OUTPUT_SIGN_2 1.0f
 
